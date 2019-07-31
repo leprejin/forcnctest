@@ -1,353 +1,412 @@
-resource "aws_vpc" "awsvpc" {
-  cidr_block           = "101.0.0.0/16"
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  instance_tenancy     = "default"
+resource "azurerm_resource_group" "rg" {
+  name     = "user15-rg"
+  location = "japaneast"
 }
 
-resource "aws_internet_gateway" "awsipg" {
-  vpc_id = "${aws_vpc.awsvpc.id}"
+variable "application_port" {
+   description = "The port that you want to expose to the external load balancer"
+   default     = 80
+}
+variable "admin_user" {
+   description = "User name to use as the admin account on the VMs that will be part of the VM Scale Set"
+   default     = "azureuser"
+}
+variable "admin_password" {
+   description = "password"
+   default     = "Passw0rd"
+
+}
+variable "location" {
+ description = "location"
+ default     = "japaneast"
+
 }
 
-resource "aws_subnet" "public_1a" {
-  vpc_id            = "${aws_vpc.awsvpc.id}"
-  availability_zone = "ap-northeast-1a"
-  cidr_block        = "101.0.1.0/24"
+variable "tags" {
+ description = "A map of the tags to use for the resources that are deployed"
+ type        = "map"
+ default = {
+   environment = "codelab"
+ }
 }
 
-resource "aws_subnet" "public_1d" {
-  vpc_id            = "${aws_vpc.awsvpc.id}"
-  availability_zone = "ap-northeast-1d"
-  cidr_block        = "101.0.2.0/24"
-}
+resource "azurerm_network_security_group" "secGroup" {
+    name = "myNetworkSecurityGroup"
+    location = "japaneast"
+    resource_group_name ="${azurerm_resource_group.rg.name}"
 
-resource "aws_eip" "awseip3" {
-  vpc = false
-}
-
-resource "aws_eip" "awseip4" {
-  vpc = false
-}
-/*
-resource "aws_eip" "awspubeip" {
-  vpc = false  
-}
-*/
-resource "aws_nat_gateway" "natgate_1a" {
-  allocation_id = "${aws_eip.awseip3.id}"
-  subnet_id     = "${aws_subnet.public_1a.id}"
-}
-
-resource "aws_nat_gateway" "natgate_1d" {
-  allocation_id = "${aws_eip.awseip4.id}"
-  subnet_id     = "${aws_subnet.public_1d.id}"
-}
-
-resource "aws_route_table" "awsrtp" {
-  vpc_id = "${aws_vpc.awsvpc.id}"
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = "${aws_internet_gateway.awsipg.id}"
-  }
-}
-
-resource "aws_route_table_association" "awsrtp1a" {
-  subnet_id      = "${aws_subnet.public_1a.id}"
-  route_table_id = "${aws_route_table.awsrtp.id}"
-}
-
-resource "aws_route_table_association" "awsrtp1d" {
-  subnet_id      = "${aws_subnet.public_1d.id}"
-  route_table_id = "${aws_route_table.awsrtp.id}"
-}
-
-resource "aws_default_security_group" "awssecurity" {
-  vpc_id = "${aws_vpc.awsvpc.id}"
-
-  ingress {
-    protocol  = -1
-    self      = true
-    from_port = 0
-    to_port   = 0
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-} 
-
-resource "aws_default_network_acl" "awsnetworkacl" {
-  default_network_acl_id = "${aws_vpc.awsvpc.default_network_acl_id}"
-
-  ingress {
-    protocol   = -1
-    rule_no    = 100
-    action     = "allow"
-    cidr_block = "0.0.0.0/0"
-    from_port  = 0
-    to_port    = 0
-  }
-
-  egress {
-    protocol   = -1
-    rule_no    = 100
-    action     = "allow"
-    cidr_block = "0.0.0.0/0"
-    from_port  = 0
-    to_port    = 0
-  }
-
-  subnet_ids = [
-    "${aws_subnet.public_1a.id}",
-    "${aws_subnet.public_1d.id}",
-  ]
-}
-
-variable "amazon_linux" {
-  # Amazon Linux AMI 2017.03.1 (HVM), SSD Volume Type - ami-4af5022c
-  default = "ami-4af5022c"
-}
-/*
-variable "dev_keyname" {
-  default = "david-key"
-}
-*/
-
-resource "aws_security_group" "webserverSecurutyGroup" {
-  name        = "webserverSecurutyGroup"
-  description = "open ssh port for webserverSecurutyGroup"
-
-  vpc_id = "${aws_vpc.awsvpc.id}"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_instance" "web3" {
-  ami               = "${var.amazon_linux}"
-  availability_zone = "ap-northeast-1a"
-  instance_type     = "t2.micro"
-  key_name = "key"
-  vpc_security_group_ids = [
-    "${aws_security_group.webserverSecurutyGroup.id}",
-    "${aws_default_security_group.awssecurity.id}",
-  ]
-
-  subnet_id                   = "${aws_subnet.public_1a.id}"
-  associate_public_ip_address = true
-}
-
-resource "aws_instance" "web4" {
-  ami               = "${var.amazon_linux}"
-  availability_zone = "ap-northeast-1d"
-  instance_type     = "t2.micro"
-  key_name = "key"
-
-  vpc_security_group_ids = [
-    "${aws_security_group.webserverSecurutyGroup.id}",
-    "${aws_default_security_group.awssecurity.id}",
-  ]
-
-  subnet_id                   = "${aws_subnet.public_1d.id}"
-  associate_public_ip_address = true
-}
-
-resource "aws_lb" "lb" {
-  name               = "lb"
-  load_balancer_type = "network"
-  ip_address_type = "ipv4"
-
-  subnet_mapping {
-    subnet_id     = "${aws_subnet.public_1a.id}"
-    allocation_id = "${aws_eip.awseip3.id}"
-  }
-
-  subnet_mapping {
-    subnet_id     = "${aws_subnet.public_1d.id}"
-    allocation_id = "${aws_eip.awseip4.id}"
-  }
-}
-
-/*
-resource "aws_alb" "frontend" {
-  name            = "alb"
-  internal        = false
-  security_groups = ["${aws_security_group.webserverSecurutyGroup.id}"]
-  subnets         = [
-    "${aws_subnet.public_1a.id}",
-    "${aws_subnet.public_1d.id}"
-  ]
-
-  access_logs {
-    bucket  = "${aws_s3_bucket.alb.id}"
-    prefix  = "frontend-alb"
-    enabled = true
-  }
-  lifecycle { create_before_destroy = true }
-}
-
-resource "aws_s3_bucket" "alb" {
-  bucket = "alb-log-example.com"
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::582318560864:root"
-      },
-      "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::alb-log-example.com/*"
-    }
-  ]
-}
-  EOF
-
-  lifecycle_rule {
-    id      = "log_lifecycle"
-    prefix  = ""
-    enabled = true
-
-    transition {
-      days          = 30
-      storage_class = "GLACIER"
+    security_rule {
+        name ="SSH"
+        priority = "1001"
+        direction = "Inbound"
+        access = "Allow"
+        protocol = "Tcp"
+        source_port_range = "*"
+        destination_port_range = "22"
+        source_address_prefix = "*"
+        destination_address_prefix = "*"
     }
 
-    expiration {
-      days = 90
+    security_rule {
+        name = "HTTP"
+        priority = "2001"
+        direction = "Inbound"
+        access = "Allow"
+        protocol = "Tcp"
+        source_port_range = "*"
+        destination_port_range = "80"
+        source_address_prefix = "*"
+        destination_address_prefix = "*"
     }
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
-resource "aws_alb_target_group" "frontend" {
-  name     = "frontend-target-group"
-  port     = 8080
-  protocol = "HTTP"
-  vpc_id   = "${aws_vpc.awsvpc.id}"
+resource "azurerm_network_security_group" "secGroup2" {
+    name = "myNetworkSecurityGroup2"
+    location = "japaneast"
+    resource_group_name ="${azurerm_resource_group.rg.name}"
 
-  health_check {
-    interval            = 30
-    path                = "/ping"
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-  }
+    security_rule {
+        name ="SSH"
+        priority = "1001"
+        direction = "Inbound"
+        access = "Allow"
+        protocol = "Tcp"
+        source_port_range = "*"
+        destination_port_range = "22"
+        source_address_prefix = "*"
+        destination_address_prefix = "*"
+    }
+
+    security_rule {
+        name = "HTTP"
+        priority = "2001"
+        direction = "Inbound"
+        access = "Allow"
+        protocol = "Tcp"
+        source_port_range = "*"
+        destination_port_range = "80"
+        source_address_prefix = "*"
+        destination_address_prefix = "*"
+    }
+    security_rule {
+        name = "db"
+        priority = "3001"
+        direction = "Inbound"
+        access = "Allow"
+        protocol = "Tcp"
+        source_port_range = "*"
+        destination_port_range = "3306"
+        source_address_prefix = "*"
+        destination_address_prefix = "*"
+    }    
+}
+resource "azurerm_virtual_network" "vnetwork" {
+    name = "vnetwork"
+    address_space = ["15.0.0.0/16"]
+    location = "japaneast"
+    resource_group_name = "${azurerm_resource_group.rg.name}"
+    
+}
+resource "azurerm_subnet" "mysubnet" {
+    name = "MySubnet1"
+    resource_group_name = "${azurerm_resource_group.rg.name}"
+    virtual_network_name = "${azurerm_virtual_network.vnetwork.name}"
+    network_security_group_id = "${azurerm_network_security_group.secGroup.id}"
+    address_prefix = "15.0.1.0/24"
+}
+resource "azurerm_subnet" "mysubnet2" {
+    name = "MySubnet2"
+    resource_group_name = "${azurerm_resource_group.rg.name}"
+    virtual_network_name = "${azurerm_virtual_network.vnetwork.name}"
+    network_security_group_id = "${azurerm_network_security_group.secGroup2.id}"
+    address_prefix = "15.0.2.0/24"
 }
 
-*/
+output "vmss_public_ip" {
+     value = "${azurerm_public_ip.vmss.fqdn}"
+ }
+
+resource "random_string" "fqdn" {
+ length  = 9
+ special = false
+ upper   = false
+ number  = true
+}
+
+resource "azurerm_public_ip" "vmss" {
+ name                         = "vmss-public-ip"
+ location                     = "japaneast"
+ resource_group_name          = "${azurerm_resource_group.rg.name}"
+ allocation_method            = "Static"
+ domain_name_label            = "${random_string.fqdn.result}"
+}
+
+resource "azurerm_lb" "vmss" {
+ name                = "vmss-lb"
+ location                     = "japaneast"
+ resource_group_name          = "${azurerm_resource_group.rg.name}"
+
+ frontend_ip_configuration {
+   name                 = "PublicIPAddress"
+   public_ip_address_id = "${azurerm_public_ip.vmss.id}"
+ }
+}
+
+resource "azurerm_lb_backend_address_pool" "bpepool" {
+ resource_group_name = "${azurerm_resource_group.rg.name}"
+ loadbalancer_id     = "${azurerm_lb.vmss.id}"
+ name                = "BackEndAddressPool"
+}
+
+resource "azurerm_lb_probe" "vmss" {
+ resource_group_name = "${azurerm_resource_group.rg.name}"
+ loadbalancer_id     = "${azurerm_lb.vmss.id}"
+ name                = "ssh-running-probe"
+ port                = "${var.application_port}"
+}
+
+resource "azurerm_lb_rule" "lbnatrule" {
+   resource_group_name            = "${azurerm_resource_group.rg.name}"
+   loadbalancer_id                = "${azurerm_lb.vmss.id}"
+   name                           = "http"
+   protocol                       = "Tcp"
+   frontend_port                  = "${var.application_port}"
+   backend_port                   = "${var.application_port}"
+   backend_address_pool_id        = "${azurerm_lb_backend_address_pool.bpepool.id}"
+   frontend_ip_configuration_name = "PublicIPAddress"
+   probe_id                       = "${azurerm_lb_probe.vmss.id}"
+}
+
+resource "azurerm_virtual_machine_scale_set" "vmssvset" {
+    name = "vmssscalesetuser15"
+    location            = "${var.location}"
+    resource_group_name = "${azurerm_resource_group.rg.name}"
+    upgrade_policy_mode = "Manual"
+
+    sku {
+    name     = "Standard_DS1_v2"
+    tier     = "Standard"
+    capacity = 3
+    }
+
+    storage_profile_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "16.04-LTS"
+    version   = "latest"
+    }
+
+    storage_profile_os_disk {
+    name              = ""
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed_disk_type = "Standard_LRS"
+    }
+
+    storage_profile_data_disk {
+    lun            =   0
+    caching        = "ReadWrite"
+    create_option  = "Empty"
+    disk_size_gb   = 10
+    }
+
+    os_profile {
+    computer_name_prefix = "vmlab"
+    admin_username       = "${var.admin_user}"
+    admin_password       = "${var.admin_password}"
+    custom_data          = "${file("web.conf")}"
+    }
+
+    os_profile_linux_config {
+    disable_password_authentication = false
+    /*
+        ssh_keys {
+            path     = "/home/azureuser/.ssh/authorized_keys"
+            key_data = "ssh-rsa AAAAB3Nz{snip}hwhqT9h"
+        }
+        */   
+    }
+
+    network_profile {
+    name    = "terraformnetworkprofile"
+    primary = true
+
+        ip_configuration {
+            name                                   = "IPConfiguration"
+            subnet_id                              = "${azurerm_subnet.mysubnet.id}"
+            load_balancer_backend_address_pool_ids = ["${azurerm_lb_backend_address_pool.bpepool.id}"]
+            primary = true
+        }
+    }
+ tags = "${var.tags}"
+}
+
+resource "azurerm_public_ip" "jumpbox" {
+ name                         = "jumpbox-public-ip"
+ location                     = "${var.location}"
+ resource_group_name          = "${azurerm_resource_group.rg.name}"
+ allocation_method = "Static"
+ domain_name_label            = "${random_string.fqdn.result}-jump-ssh"
+ tags                         = "${var.tags}"
+}
+
+resource "azurerm_network_interface" "jumpboxnic" {
+ name                = "jumpbox-nic"
+ location            = "${var.location}"
+ resource_group_name = "${azurerm_resource_group.rg.name}"
+
+ ip_configuration {
+   name                          = "IPConfiguration"
+   subnet_id                     = "${azurerm_subnet.mysubnet.id}"
+   private_ip_address_allocation = "dynamic"
+   public_ip_address_id          = "${azurerm_public_ip.jumpbox.id}"
+ }
+ tags = "${var.tags}"
+}
+
+resource "azurerm_virtual_machine" "jumpboxvm" {
+ name                  = "jumpbox"
+ location              = "${var.location}"
+ resource_group_name   = "${azurerm_resource_group.rg.name}"
+ network_interface_ids = ["${azurerm_network_interface.jumpboxnic.id}"]
+ vm_size               = "Standard_DS1_v2"
+
+ storage_image_reference {
+   publisher = "Canonical"
+   offer     = "UbuntuServer"
+   sku       = "16.04-LTS"
+   version   = "latest"
+ }
+
+ storage_os_disk {
+   name              = "jumpbox-osdisk"
+   caching           = "ReadWrite"
+   create_option     = "FromImage"
+   managed_disk_type = "Standard_LRS"
+ }
+
+ os_profile {
+   computer_name  = "jumpbox"
+   admin_username = "${var.admin_user}"
+   admin_password = "${var.admin_password}"
+ }
+
+ os_profile_linux_config {
+   disable_password_authentication = false
+   /*
+    ssh_keys {
+        path     = "/home/azureuser/.ssh/authorized_keys"
+        key_data = "ssh-rsa AAAAB3Nz{snip}hwhqT9h"
+    }
+    */      
+ }
+
+ tags = "${var.tags}"
+}
+
+output "jumpbox_public_ip" {
+   value = "${azurerm_public_ip.jumpbox.fqdn}"
+}
+
+resource "azurerm_public_ip" "dbip" {
+ name                         = "DB-public-ip"
+ location                     = "${var.location}"
+ resource_group_name          = "${azurerm_resource_group.rg.name}"
+ allocation_method = "Static"
+ //domain_name_label            = "${random_string.fqdn.result}-ssh"
+ tags                         = "${var.tags}"
+}
+
+resource "azurerm_network_interface" "dbnic" {
+ name                = "DB-nic"
+ location            = "${var.location}"
+ resource_group_name = "${azurerm_resource_group.rg.name}"
+
+ ip_configuration {
+   name                          = "IPConfiguration"
+   subnet_id                     = "${azurerm_subnet.mysubnet.id}"
+   private_ip_address_allocation = "dynamic"
+   public_ip_address_id          = "${azurerm_public_ip.dbip.id}"
+ }
+tags = "${var.tags}"
+}
+
+resource "azurerm_virtual_machine" "dbserver" {
+ name                  = "Dbserver"
+ location              = "${var.location}"
+ resource_group_name   = "${azurerm_resource_group.rg.name}"
+ network_interface_ids = ["${azurerm_network_interface.dbnic.id}"]
+ vm_size               = "Standard_DS1_v2"
+
+ storage_image_reference {
+   publisher = "Canonical"
+   offer     = "UbuntuServer"
+   sku       = "16.04-LTS"
+   version   = "latest"
+ }
+
+ storage_os_disk {
+   name              = "dbserver-osdisk"
+   caching           = "ReadWrite"
+   create_option     = "FromImage"
+   managed_disk_type = "Standard_LRS"
+ }
+
+ os_profile {
+   computer_name  = "dbserver"
+   admin_username = "${var.admin_user}"
+   admin_password = "${var.admin_password}"
+ }
+
+ os_profile_linux_config {
+   disable_password_authentication = false
+   /*
+    ssh_keys {
+        path     = "/home/azureuser/.ssh/authorized_keys"
+        key_data = "ssh-rsa AAAAB3Nz{snip}hwhqT9h"
+    }
+    */      
+ }
+
+ tags = "${var.tags}"
+}
+
+output "DB_public_ip" {
+   value = "${azurerm_public_ip.dbip.fqdn}"
+}
+
+
 /*
-resource "aws_alb_target_group" "frontend2" {
-  name     = "static-target-group"
-  port     = 8080
-  protocol = "HTTP"
-  vpc_id   = "${aws_vpc.awsvpc.id}"
 
-  health_check {
-    interval            = 30
-    path                = "/ping"
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-  }
-}
+resource "azurerm_mysql_server" "dbserver" {
+  name                = "mysql-server"
+  location            = "${azurerm_resource_group.rg.location}"
+  resource_group_name = "${azurerm_resource_group.rg.name}"
 
-
-resource "aws_alb_target_group_attachment" "frontend1" {
-  target_group_arn = "${aws_alb_target_group.frontend.arn}"
-  target_id        = "${aws_instance.web3.id}"
-  port             = 8080
-}
-
-resource "aws_alb_target_group_attachment" "frontend2" {
-  target_group_arn = "${aws_alb_target_group.frontend.arn}"
-  target_id        = "${aws_instance.web4.id}"
-  port             = 8080
-}
-
-
-data "aws_acm_certificate" "example_dot_com"   {
-  domain   = "*.example.com."
-  statuses = ["ISSUED"]
-}
-
-resource "aws_alb_listener" "https" {
-  load_balancer_arn = "${aws_alb.frontend.arn}"
-  port              = "443"
-  protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-2016-08"
-  certificate_arn   = "${data.aws_acm_certificate.example_dot_com.arn}"
-
-  default_action {
-    target_group_arn = "${aws_alb_target_group.frontend.arn}"
-    type             = "forward"
-  }
-}
-
-resource "aws_alb_listener" "http" {
-  load_balancer_arn = "${aws_alb.frontend.arn}"
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    target_group_arn = "${aws_alb_target_group.frontend.arn}"
-    type             = "forward"
-  }
-}
-
-resource "aws_alb_listener_rule" "static" {
-  listener_arn = "${aws_alb_listener.https.arn}"
-  priority     = 100
-
-  action {
-    type             = "forward"
-    target_group_arn = "${aws_alb_target_group.static.arn}"
+  sku {
+    name     = "B_Gen5_2"
+    capacity = 1
+    tier     = "Basic"
+    family   = "Gen5"
   }
 
-  condition {
-    field  = "path-pattern"
-    values = ["/static/*"]
+  storage_profile {
+    storage_mb            = 5120
+    backup_retention_days = 7
+    geo_redundant_backup  = "Disabled"
   }
+
+  administrator_login          = "mysql"
+  administrator_login_password = "Passw0rd"
+  version                      = "5.7"
+  ssl_enforcement              = "Enabled"
 }
 
-
-resource "aws_route53_zone" "example" {
-  name = "example43838341923.com."
-}
-
-resource "aws_route53_record" "frontend_A" {
-  zone_id = "${aws_route53_zone.example.zone_id}"
-  name    = "example43838341923.com"
-  type    = "A"
-
-  alias {
-    name     = "${aws_alb.frontend.dns_name}"
-    zone_id  = "${aws_alb.frontend.zone_id}"
-    evaluate_target_health = true
-  }
+resource "azurerm_mysql_database" "test" {
+  name                = "exampledb"
+  resource_group_name = "${azurerm_resource_group.rg.name}"
+  server_name         = "${azurerm_mysql_server.dbserver.name}"
+  charset             = "utf8"
+  collation           = "utf8_unicode_ci"
 }
 */
