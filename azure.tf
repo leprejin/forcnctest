@@ -1,6 +1,6 @@
 resource "azurerm_resource_group" "rg" {
-  name     = "user15-rg"
-  location = "japaneast"
+  name     = "user15-group"
+  location = "koreacentral"
 }
 
 variable "application_port" {
@@ -18,7 +18,7 @@ variable "admin_password" {
 }
 variable "location" {
  description = "location"
- default     = "japaneast"
+ default     = "koreacentral"
 
 }
 
@@ -32,7 +32,7 @@ variable "tags" {
 
 resource "azurerm_network_security_group" "secGroup" {
     name = "myNetworkSecurityGroup"
-    location = "japaneast"
+    location = "koreacentral"
     resource_group_name ="${azurerm_resource_group.rg.name}"
 
     security_rule {
@@ -62,7 +62,7 @@ resource "azurerm_network_security_group" "secGroup" {
 
 resource "azurerm_network_security_group" "secGroup2" {
     name = "myNetworkSecurityGroup2"
-    location = "japaneast"
+    location = "koreacentral"
     resource_group_name ="${azurerm_resource_group.rg.name}"
 
     security_rule {
@@ -103,7 +103,7 @@ resource "azurerm_network_security_group" "secGroup2" {
 resource "azurerm_virtual_network" "vnetwork" {
     name = "vnetwork"
     address_space = ["15.0.0.0/16"]
-    location = "japaneast"
+    location = "koreacentral"
     resource_group_name = "${azurerm_resource_group.rg.name}"
     
 }
@@ -122,10 +122,6 @@ resource "azurerm_subnet" "mysubnet2" {
     address_prefix = "15.0.2.0/24"
 }
 
-output "vmss_public_ip" {
-     value = "${azurerm_public_ip.vmss.fqdn}"
- }
-
 resource "random_string" "fqdn" {
  length  = 9
  special = false
@@ -135,15 +131,15 @@ resource "random_string" "fqdn" {
 
 resource "azurerm_public_ip" "vmss" {
  name                         = "vmss-public-ip"
- location                     = "japaneast"
+ location                     = "koreacentral"
  resource_group_name          = "${azurerm_resource_group.rg.name}"
  allocation_method            = "Static"
- domain_name_label            = "${random_string.fqdn.result}"
+ domain_name_label            = "user15skcncazure2"
 }
 
 resource "azurerm_lb" "vmss" {
  name                = "vmss-lb"
- location                     = "japaneast"
+ location                     = "koreacentral"
  resource_group_name          = "${azurerm_resource_group.rg.name}"
 
  frontend_ip_configuration {
@@ -177,6 +173,23 @@ resource "azurerm_lb_rule" "lbnatrule" {
    probe_id                       = "${azurerm_lb_probe.vmss.id}"
 }
 
+/*
+variable "custom_image_resource_group_name" {
+  description = "The name of the Resource Group in which the Custom Image exists."
+  default = "user15-rg"
+//    default = "group1-final"
+}
+variable "custom_image_name" {
+  description = "The name of the Custom Image to provision this Virtual Machine from."
+  
+  default = "user15Front-image"
+//  default = "group1img"
+}
+data "azurerm_image" "custom" {
+  name                = "${var.custom_image_name}"
+  resource_group_name = "user15-rg"
+}
+*/
 resource "azurerm_virtual_machine_scale_set" "vmssvset" {
     name = "vmssscalesetuser15"
     location            = "${var.location}"
@@ -190,10 +203,11 @@ resource "azurerm_virtual_machine_scale_set" "vmssvset" {
     }
 
     storage_profile_image_reference {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "16.04-LTS"
-    version   = "latest"
+        //id = "${data.azurerm_image.custom.id}"
+        publisher = "RedHat"
+        offer     = "RHEL"
+        sku       = "7.4"
+        version   = "latest"
     }
 
     storage_profile_os_disk {
@@ -214,7 +228,7 @@ resource "azurerm_virtual_machine_scale_set" "vmssvset" {
     computer_name_prefix = "vmlab"
     admin_username       = "${var.admin_user}"
     admin_password       = "${var.admin_password}"
-    custom_data          = "${file("web.conf")}"
+//   custom_data          = "${file("web.conf")}"
     }
 
     os_profile_linux_config {
@@ -239,14 +253,14 @@ resource "azurerm_virtual_machine_scale_set" "vmssvset" {
         }
     }
  tags = "${var.tags}"
-}
+ }
 
 resource "azurerm_public_ip" "jumpbox" {
  name                         = "jumpbox-public-ip"
  location                     = "${var.location}"
  resource_group_name          = "${azurerm_resource_group.rg.name}"
  allocation_method            = "Static"
- domain_name_label            = "${random_string.fqdn.result}"
+ domain_name_label            = "user15skcncjumper2"
  tags                         = "${var.tags}"
 }
 
@@ -304,16 +318,14 @@ resource "azurerm_virtual_machine" "jumpboxvm" {
  tags = "${var.tags}"
 }
 
-output "jumpbox_public_ip" {
-   value = "${azurerm_public_ip.jumpbox.fqdn}"
-}
+
 
 resource "azurerm_public_ip" "dbip" {
  name                         = "DB-public-ip"
  location                     = "${var.location}"
  resource_group_name          = "${azurerm_resource_group.rg.name}"
- allocation_method = "Static"
- domain_name_label            = "${random_string.fqdn.result}-db-ssh"
+ allocation_method            = "Static"
+ domain_name_label            = "user15skcncdb2"
  tags                         = "${var.tags}"
 }
 
@@ -339,14 +351,14 @@ resource "azurerm_virtual_machine" "dbserver" {
  vm_size               = "Standard_DS1_v2"
 
  storage_image_reference {
-   publisher = "Canonical"
-   offer     = "UbuntuServer"
-   sku       = "16.04-LTS"
-   version   = "latest"
+    publisher = "RedHat"
+    offer     = "RHEL"
+    sku       = "7.4"
+    version   = "latest"
  }
 
  storage_os_disk {
-   name              = "dbserver-osdisk"
+   name              = "dbserver-osdiskuser16"
    caching           = "ReadWrite"
    create_option     = "FromImage"
    managed_disk_type = "Standard_LRS"
@@ -374,39 +386,3 @@ resource "azurerm_virtual_machine" "dbserver" {
 output "DB_public_ip" {
    value = "${azurerm_public_ip.dbip.fqdn}"
 }
-
-
-/*
-
-resource "azurerm_mysql_server" "dbserver" {
-  name                = "mysql-server"
-  location            = "${azurerm_resource_group.rg.location}"
-  resource_group_name = "${azurerm_resource_group.rg.name}"
-
-  sku {
-    name     = "B_Gen5_2"
-    capacity = 1
-    tier     = "Basic"
-    family   = "Gen5"
-  }
-
-  storage_profile {
-    storage_mb            = 5120
-    backup_retention_days = 7
-    geo_redundant_backup  = "Disabled"
-  }
-
-  administrator_login          = "mysql"
-  administrator_login_password = "Passw0rd"
-  version                      = "5.7"
-  ssl_enforcement              = "Enabled"
-}
-
-resource "azurerm_mysql_database" "test" {
-  name                = "exampledb"
-  resource_group_name = "${azurerm_resource_group.rg.name}"
-  server_name         = "${azurerm_mysql_server.dbserver.name}"
-  charset             = "utf8"
-  collation           = "utf8_unicode_ci"
-}
-*/
